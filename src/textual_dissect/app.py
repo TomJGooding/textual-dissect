@@ -84,10 +84,12 @@ class DocumentationLink(Link):
     widget_class: var[str] = var(WIDGET_CLASSES[0])
 
     def __init__(self) -> None:
-        super().__init__(self.BASE_URL)
+        super().__init__(text=self.BASE_URL, url=self.BASE_URL)
 
     def watch_widget_class(self, widget_class: str) -> None:
-        self.update(self.BASE_URL + camel_to_snake(widget_class))
+        widget_url = self.BASE_URL + camel_to_snake(widget_class)
+        self.text = widget_url
+        self.url = widget_url
 
 
 class SourceCodeLink(Link):
@@ -112,11 +114,13 @@ class SourceCodeLink(Link):
     widget_class: var[str] = var(WIDGET_CLASSES[0])
 
     def __init__(self) -> None:
-        super().__init__(self.SOURCE_URL)
+        super().__init__(text=self.SOURCE_URL, url=self.SOURCE_URL)
 
     def watch_widget_class(self, widget_class: str) -> None:
         widget_file = f"_{camel_to_snake(widget_class)}.py"
-        self.update(self.SOURCE_URL + widget_file)
+        widget_url = self.SOURCE_URL + widget_file
+        self.text = widget_url
+        self.url = widget_url
 
 
 class TextualDissectApp(App):
