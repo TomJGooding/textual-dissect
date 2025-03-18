@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from importlib import import_module
+from textwrap import dedent
+
 from textual import __version__, on
 from textual.app import App, ComposeResult
 from textual.case import camel_to_snake
 from textual.reactive import var
-from textual.widgets import Link, OptionList
+from textual.widgets import Link, OptionList, TextArea
 from textual.widgets.option_list import Option
 
 WIDGET_CLASSES = [
@@ -123,6 +126,46 @@ class SourceCodeLink(Link):
         self.url = widget_url
 
 
+_WIDGET_DEFAULT_CSS_CACHE: dict[str, str] = {}
+
+
+def get_default_css(widget_class: str) -> str:
+    if widget_class not in _WIDGET_DEFAULT_CSS_CACHE:
+        widget_module_path = f"._{camel_to_snake(widget_class)}"
+        module = import_module(widget_module_path, package="textual.widgets")
+        class_ = getattr(module, widget_class)
+
+        raw_default_css = class_.DEFAULT_CSS
+        clean_default_css = dedent(raw_default_css).strip()
+        _WIDGET_DEFAULT_CSS_CACHE[widget_class] = clean_default_css
+
+    return _WIDGET_DEFAULT_CSS_CACHE[widget_class]
+
+
+class DefaultCSSView(TextArea):
+    DEFAULT_CSS = """
+    DefaultCSSView {
+        width: 1fr;
+        border: solid $foreground 50%;
+        padding: 0 1;
+        scrollbar-gutter: stable;
+
+        &:focus {
+            border: solid $border;
+        }
+    }
+    """
+
+    widget_class: var[str] = var(WIDGET_CLASSES[0])
+
+    def __init__(self) -> None:
+        super().__init__(read_only=True)
+
+    def watch_widget_class(self, widget_class: str) -> None:
+        default_css = get_default_css(widget_class)
+        self.load_text(default_css)
+
+
 class TextualDissectApp(App):
     widget_class: var[str] = var(WIDGET_CLASSES[0])
 
@@ -138,9 +181,15 @@ class TextualDissectApp(App):
         source_code_link.data_bind(TextualDissectApp.widget_class)
         source_code_link.border_title = "Source Code"
 
+        default_css_view = DefaultCSSView()
+        default_css_view.data_bind(TextualDissectApp.widget_class)
+        default_css_view.border_title = "Default CSS"
+        default_css_view.cursor_blink = False
+
         yield widgets_list
         yield documentation_link
         yield source_code_link
+        yield default_css_view
 
     @on(WidgetsList.OptionHighlighted)
     def on_widgets_list_option_highlighted(
