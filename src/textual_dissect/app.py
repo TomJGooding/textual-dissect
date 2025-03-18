@@ -6,8 +6,9 @@ from textwrap import dedent
 from textual import __version__, on
 from textual.app import App, ComposeResult
 from textual.case import camel_to_snake
+from textual.dom import DOMNode
 from textual.reactive import var
-from textual.widgets import Link, OptionList, TextArea
+from textual.widgets import Link, OptionList, TextArea, Tree
 from textual.widgets.option_list import Option
 
 WIDGET_CLASSES = [
@@ -126,6 +127,61 @@ class SourceCodeLink(Link):
         self.url = widget_url
 
 
+_WIDGET_BASE_CLASSES_CACHE: dict[str, list[str]] = {}
+
+
+def get_base_classes(widget_class: str) -> list[str]:
+    if widget_class not in _WIDGET_BASE_CLASSES_CACHE:
+        widget_module_path = f"._{camel_to_snake(widget_class)}"
+        module = import_module(widget_module_path, package="textual.widgets")
+
+        classes: list[str] = []
+        class_ = getattr(module, widget_class)
+        while True:
+            classes.append(class_.__name__)
+            for base in class_.__bases__:
+                if issubclass(base, DOMNode):
+                    class_ = base
+                    break
+            else:
+                break
+
+        classes.reverse()
+        _WIDGET_BASE_CLASSES_CACHE[widget_class] = classes
+
+    return _WIDGET_BASE_CLASSES_CACHE[widget_class]
+
+
+class InheritanceTree(Tree):
+    DEFAULT_CSS = """
+    InheritanceTree {
+        height: 7;
+        width: 1fr;
+        border: solid $foreground 50%;
+        padding: 0 1;
+
+        &:focus {
+            border: solid $border;
+        }
+    }
+    """
+
+    widget_class: var[str] = var(WIDGET_CLASSES[0])
+
+    def __init__(self) -> None:
+        super().__init__("DOMNode")
+
+    def watch_widget_class(self, widget_class: str) -> None:
+        self.clear()
+
+        base_classes = get_base_classes(widget_class)
+        widget = self.root.add(base_classes[1], expand=True, allow_expand=False)
+        for class_ in base_classes[2:]:
+            widget = widget.add(class_, expand=True, allow_expand=False)
+
+        self.cursor_line = self.last_line
+
+
 _WIDGET_DEFAULT_CSS_CACHE: dict[str, str] = {}
 
 
@@ -181,6 +237,11 @@ class TextualDissectApp(App):
         source_code_link.data_bind(TextualDissectApp.widget_class)
         source_code_link.border_title = "Source Code"
 
+        inheritance_tree = InheritanceTree()
+        inheritance_tree.data_bind(TextualDissectApp.widget_class)
+        inheritance_tree.border_title = "Inheritance Tree"
+        inheritance_tree.show_root = False
+
         default_css_view = DefaultCSSView()
         default_css_view.data_bind(TextualDissectApp.widget_class)
         default_css_view.border_title = "Default CSS"
@@ -189,6 +250,7 @@ class TextualDissectApp(App):
         yield widgets_list
         yield documentation_link
         yield source_code_link
+        yield inheritance_tree
         yield default_css_view
 
     @on(WidgetsList.OptionHighlighted)
