@@ -3,6 +3,7 @@ from __future__ import annotations
 from importlib import import_module
 from textwrap import dedent
 
+import tree_sitter_scss
 from textual import __version__, on
 from textual.app import App, ComposeResult
 from textual.case import camel_to_snake
@@ -10,6 +11,7 @@ from textual.dom import DOMNode
 from textual.reactive import var
 from textual.widgets import Link, OptionList, TextArea, Tree
 from textual.widgets.option_list import Option
+from tree_sitter import Language
 
 WIDGET_CLASSES = [
     "Button",
@@ -198,6 +200,40 @@ def get_default_css(widget_class: str) -> str:
     return _WIDGET_DEFAULT_CSS_CACHE[widget_class]
 
 
+_TCSS_LANGUAGE = Language(tree_sitter_scss.language())
+_TCSS_HIGHLIGHT_QUERY = """
+(comment) @comment @spell
+
+[
+ (tag_name)
+ (nesting_selector)
+ (universal_selector)
+ ] @type.class
+
+[
+ (class_name)
+ (id_name)
+ (property_name)
+ ] @css.property
+
+((property_name) @type.definition
+  (#lua-match? @type.definition "^[-][-]"))
+((plain_value) @type
+  (#lua-match? @type "^[-][-]"))
+
+[
+ (string_value)
+ (color_value)
+ (unit)
+ ] @string
+
+[
+ (integer_value)
+ (float_value)
+ ] @number
+"""
+
+
 class DefaultCSSView(TextArea):
     DEFAULT_CSS = """
     DefaultCSSView {
@@ -246,6 +282,10 @@ class TextualDissectApp(App):
         default_css_view.data_bind(TextualDissectApp.widget_class)
         default_css_view.border_title = "Default CSS"
         default_css_view.cursor_blink = False
+        default_css_view.register_language(
+            "tcss", _TCSS_LANGUAGE, _TCSS_HIGHLIGHT_QUERY
+        )
+        default_css_view.language = "tcss"
 
         yield widgets_list
         yield documentation_link
