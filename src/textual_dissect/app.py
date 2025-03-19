@@ -216,6 +216,8 @@ _TCSS_HIGHLIGHT_QUERY = """
  (property_name)
  ] @css.property
 
+(variable) @type.builtin
+
 ((property_name) @type.definition
   (#lua-match? @type.definition "^[-][-]"))
 ((plain_value) @type
