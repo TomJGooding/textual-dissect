@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from importlib import import_module
 from textwrap import dedent
 
@@ -51,6 +52,60 @@ WIDGET_CLASSES = [
     "Tree",
 ]
 
+DOCS_BASE_URL = "https://textual.textualize.io/"
+DOCS_WIDGETS_URL = DOCS_BASE_URL + "widgets/"
+
+SRC_BASE_URL = "https://github.com/Textualize/textual/"
+SRC_VERSION_PATH = f"blob/v{__version__}/"
+SRC_WIDGETS_URL = SRC_BASE_URL + SRC_VERSION_PATH + "src/textual/widgets/"
+
+
+@dataclass(frozen=True)
+class WidgetDetails:
+    docs_url: str
+    source_url: str
+    base_classes: list[str]
+    default_css: str
+
+
+_WIDGET_DETAILS_CACHE: dict[str, WidgetDetails] = {}
+
+
+def get_widget_details(widget_class: str) -> WidgetDetails:
+    if widget_class not in _WIDGET_DETAILS_CACHE:
+        widget_snake_case = camel_to_snake(widget_class)
+
+        docs_url = DOCS_WIDGETS_URL + widget_snake_case
+        source_url = SRC_WIDGETS_URL + f"_{widget_snake_case}.py"
+
+        module_path = f"._{widget_snake_case}"
+        module = import_module(module_path, package="textual.widgets")
+        class_ = getattr(module, widget_class)
+
+        raw_default_css = class_.DEFAULT_CSS
+        default_css = dedent(raw_default_css).strip()
+
+        base_classes: list[str] = []
+        while True:
+            base_classes.append(class_.__name__)
+            for base in class_.__bases__:
+                if issubclass(base, DOMNode):
+                    class_ = base
+                    break
+            else:
+                break
+
+        base_classes.reverse()
+
+        _WIDGET_DETAILS_CACHE[widget_class] = WidgetDetails(
+            docs_url=docs_url,
+            source_url=source_url,
+            base_classes=base_classes,
+            default_css=default_css,
+        )
+
+    return _WIDGET_DETAILS_CACHE[widget_class]
+
 
 class WidgetsList(OptionList):
     DEFAULT_CSS = """
@@ -73,8 +128,6 @@ class WidgetsList(OptionList):
 
 
 class DocumentationLink(Link):
-    BASE_URL = "https://textual.textualize.io/widgets/"
-
     DEFAULT_CSS = """
     DocumentationLink {
         width: 1fr;
@@ -90,21 +143,15 @@ class DocumentationLink(Link):
     widget_class: var[str] = var(WIDGET_CLASSES[0])
 
     def __init__(self) -> None:
-        super().__init__(text=self.BASE_URL, url=self.BASE_URL)
+        super().__init__(text=DOCS_BASE_URL, url=DOCS_BASE_URL)
 
     def watch_widget_class(self, widget_class: str) -> None:
-        widget_url = self.BASE_URL + camel_to_snake(widget_class)
-        self.text = widget_url
-        self.url = widget_url
+        widget_details = get_widget_details(widget_class)
+        self.text = widget_details.docs_url
+        self.url = widget_details.docs_url
 
 
 class SourceCodeLink(Link):
-    BASE_URL = "https://github.com/Textualize/textual/"
-    VERSION_PATH = f"blob/v{__version__}/"
-    WIDGETS_PATH = "src/textual/widgets/"
-
-    SOURCE_URL = BASE_URL + VERSION_PATH + WIDGETS_PATH
-
     DEFAULT_CSS = """
     SourceCodeLink {
         width: 1fr;
@@ -120,38 +167,12 @@ class SourceCodeLink(Link):
     widget_class: var[str] = var(WIDGET_CLASSES[0])
 
     def __init__(self) -> None:
-        super().__init__(text=self.SOURCE_URL, url=self.SOURCE_URL)
+        super().__init__(text=SRC_WIDGETS_URL, url=SRC_WIDGETS_URL)
 
     def watch_widget_class(self, widget_class: str) -> None:
-        widget_file = f"_{camel_to_snake(widget_class)}.py"
-        widget_url = self.SOURCE_URL + widget_file
-        self.text = widget_url
-        self.url = widget_url
-
-
-_WIDGET_BASE_CLASSES_CACHE: dict[str, list[str]] = {}
-
-
-def get_base_classes(widget_class: str) -> list[str]:
-    if widget_class not in _WIDGET_BASE_CLASSES_CACHE:
-        widget_module_path = f"._{camel_to_snake(widget_class)}"
-        module = import_module(widget_module_path, package="textual.widgets")
-
-        classes: list[str] = []
-        class_ = getattr(module, widget_class)
-        while True:
-            classes.append(class_.__name__)
-            for base in class_.__bases__:
-                if issubclass(base, DOMNode):
-                    class_ = base
-                    break
-            else:
-                break
-
-        classes.reverse()
-        _WIDGET_BASE_CLASSES_CACHE[widget_class] = classes
-
-    return _WIDGET_BASE_CLASSES_CACHE[widget_class]
+        widget_details = get_widget_details(widget_class)
+        self.text = widget_details.source_url
+        self.url = widget_details.source_url
 
 
 class InheritanceTree(Tree):
@@ -176,28 +197,13 @@ class InheritanceTree(Tree):
     def watch_widget_class(self, widget_class: str) -> None:
         self.clear()
 
-        base_classes = get_base_classes(widget_class)
+        widget_details = get_widget_details(widget_class)
+        base_classes = widget_details.base_classes
         widget = self.root.add(base_classes[1], expand=True, allow_expand=False)
         for class_ in base_classes[2:]:
             widget = widget.add(class_, expand=True, allow_expand=False)
 
         self.cursor_line = self.last_line
-
-
-_WIDGET_DEFAULT_CSS_CACHE: dict[str, str] = {}
-
-
-def get_default_css(widget_class: str) -> str:
-    if widget_class not in _WIDGET_DEFAULT_CSS_CACHE:
-        widget_module_path = f"._{camel_to_snake(widget_class)}"
-        module = import_module(widget_module_path, package="textual.widgets")
-        class_ = getattr(module, widget_class)
-
-        raw_default_css = class_.DEFAULT_CSS
-        clean_default_css = dedent(raw_default_css).strip()
-        _WIDGET_DEFAULT_CSS_CACHE[widget_class] = clean_default_css
-
-    return _WIDGET_DEFAULT_CSS_CACHE[widget_class]
 
 
 _TCSS_LANGUAGE = Language(tree_sitter_scss.language())
@@ -256,8 +262,8 @@ class DefaultCSSView(TextArea):
         super().__init__(read_only=True)
 
     def watch_widget_class(self, widget_class: str) -> None:
-        default_css = get_default_css(widget_class)
-        self.load_text(default_css)
+        widget_details = get_widget_details(widget_class)
+        self.load_text(widget_details.default_css)
 
 
 class TextualDissectApp(App):
