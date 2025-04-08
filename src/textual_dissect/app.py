@@ -349,6 +349,11 @@ class TextualDissectApp(App):
     def on_widgets_list_option_highlighted(
         self, event: WidgetsList.OptionHighlighted
     ) -> None:
+        # Workaround for a footgun in Textual where this event handler doesn't
+        # differentiate the subclass from its parent widget.
+        # https://github.com/Textualize/textual/issues/4968
+        if not isinstance(event.control, WidgetsList):
+            return
         widget_class = event.option_id
         assert widget_class is not None
         self.widget_class = widget_class
