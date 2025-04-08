@@ -240,13 +240,7 @@ class ModuleWidgetsList(OptionList):
         self.clear_options()
         widget_details = get_widget_details(widget_class)
         self.add_options(
-            [
-                Option(
-                    widget,
-                    id=widget,
-                )
-                for widget in widget_details.module_widgets
-            ]
+            [Option(widget, id=widget) for widget in widget_details.module_widgets]
         )
 
 
