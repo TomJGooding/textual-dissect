@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass
 from importlib import import_module
 from textwrap import dedent
@@ -8,8 +9,10 @@ import tree_sitter_scss
 from textual import __version__, on
 from textual.app import App, ComposeResult
 from textual.case import camel_to_snake
+from textual.containers import HorizontalGroup
 from textual.dom import DOMNode
 from textual.reactive import var
+from textual.widget import Widget
 from textual.widgets import Link, OptionList, TextArea, Tree
 from textual.widgets.option_list import Option
 from tree_sitter import Language
@@ -65,6 +68,7 @@ class WidgetDetails:
     docs_url: str
     source_url: str
     base_classes: list[str]
+    module_widgets: list[str]
     default_css: str
 
 
@@ -85,6 +89,15 @@ def get_widget_details(widget_class: str) -> WidgetDetails:
         raw_default_css = class_.DEFAULT_CSS
         default_css = dedent(raw_default_css).strip()
 
+        module_widgets: list[str] = []
+        for name, obj in inspect.getmembers(module):
+            if (
+                inspect.isclass(obj)
+                and issubclass(obj, Widget)
+                and obj.__module__ == module.__name__
+            ):
+                module_widgets.append(name)
+
         base_classes: list[str] = []
         while True:
             base_classes.append(class_.__name__)
@@ -101,6 +114,7 @@ def get_widget_details(widget_class: str) -> WidgetDetails:
             docs_url=docs_url,
             source_url=source_url,
             base_classes=base_classes,
+            module_widgets=module_widgets,
             default_css=default_css,
         )
 
@@ -206,6 +220,30 @@ class InheritanceTree(Tree):
         self.cursor_line = self.last_line
 
 
+class ModuleWidgetsList(OptionList):
+    DEFAULT_CSS = """
+    ModuleWidgetsList {
+        height: 7;
+        width: 1fr;
+        border: solid $foreground 50%;
+        padding: 0 1;
+
+        &:focus {
+            border: solid $border;
+        }
+    }
+    """
+
+    widget_class: var[str] = var(WIDGET_CLASSES[0])
+
+    def watch_widget_class(self, widget_class: str) -> None:
+        self.clear_options()
+        widget_details = get_widget_details(widget_class)
+        self.add_options(
+            [Option(widget, id=widget) for widget in widget_details.module_widgets]
+        )
+
+
 _TCSS_LANGUAGE = Language(tree_sitter_scss.language())
 _TCSS_HIGHLIGHT_QUERY = """
 (comment) @comment @spell
@@ -286,6 +324,10 @@ class TextualDissectApp(App):
         inheritance_tree.border_title = "Inheritance Tree"
         inheritance_tree.show_root = False
 
+        module_widgets_list = ModuleWidgetsList()
+        module_widgets_list.data_bind(TextualDissectApp.widget_class)
+        module_widgets_list.border_title = "Module Widgets"
+
         default_css_view = DefaultCSSView()
         default_css_view.data_bind(TextualDissectApp.widget_class)
         default_css_view.border_title = "Default CSS"
@@ -298,7 +340,9 @@ class TextualDissectApp(App):
         yield widgets_list
         yield documentation_link
         yield source_code_link
-        yield inheritance_tree
+        with HorizontalGroup():
+            yield inheritance_tree
+            yield module_widgets_list
         yield default_css_view
 
     @on(WidgetsList.OptionHighlighted)
