@@ -345,15 +345,14 @@ class TextualDissectApp(App):
             yield module_widgets_list
         yield default_css_view
 
-    @on(WidgetsList.OptionHighlighted)
+    # NOTE: The CSS selector is needed in the `on` decorator below to
+    # workaround a footgun in Textual where the event handler doesn't
+    # differentiate the subclass from its parent widget.
+    # https://github.com/Textualize/textual/issues/4968
+    @on(WidgetsList.OptionHighlighted, "WidgetsList")
     def on_widgets_list_option_highlighted(
         self, event: WidgetsList.OptionHighlighted
     ) -> None:
-        # Workaround for a footgun in Textual where this event handler doesn't
-        # differentiate the subclass from its parent widget.
-        # https://github.com/Textualize/textual/issues/4968
-        if not isinstance(event.control, WidgetsList):
-            return
         widget_class = event.option_id
         assert widget_class is not None
         self.widget_class = widget_class
