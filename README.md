@@ -3,7 +3,7 @@
 A tool for dissecting [Textual](https://github.com/textualize/textual/) widgets,
 including default CSS and more.
 
-![screenshot](assets/screenshot.png)
+![screenshot](https://raw.githubusercontent.com/TomJGooding/textual-dissect/main/assets/screenshot.png)
 
 ## About
 
