@@ -22,6 +22,12 @@ Install `textual-dissect` using pip:
 pip install textual-dissect
 ```
 
+> [!NOTE]
+> It is recommended to install `textual-dissect` within your Textual project
+> using pip, rather than as a standalone tool with pipx or uvx.
+> This ensures that the Textual version in this tool aligns with the version
+> in your current project.
+
 ## License
 
 Licensed under the [GNU General Public License v3.0](LICENSE).
