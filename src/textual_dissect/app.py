@@ -23,6 +23,7 @@ from tree_sitter import Language
 class WidgetType(Enum):
     CORE_WIDGET = 1
     CONTAINER = 2
+    BASE_CLASS = 3
 
 
 WIDGET_CLASSES = {
@@ -79,13 +80,17 @@ WIDGET_CLASSES = {
         "Grid",
         "ItemGrid",
     ],
+    WidgetType.BASE_CLASS: [
+        "Widget",
+        "ScrollView",
+    ],
 }
 
 DOCS_BASE_URL = "https://textual.textualize.io/"
 DOCS_WIDGETS_URL = DOCS_BASE_URL + "widgets/"
 DOCS_CONTAINERS_URL = DOCS_BASE_URL + "api/containers/#textual.containers"
 
-SRC_BASE_URL = "https://github.com/Textualize/textual/"
+SRC_BASE_URL = f"https://github.com/Textualize/textual/"
 SRC_VERSION_PATH = f"blob/v{__version__}/"
 SRC_WIDGETS_URL = SRC_BASE_URL + SRC_VERSION_PATH + "src/textual/widgets/"
 SRC_CONTAINERS_URL = SRC_BASE_URL + SRC_VERSION_PATH + "src/textual/containers.py"
@@ -108,9 +113,8 @@ def get_widget_details(
     widget_type: WidgetType,
 ) -> WidgetDetails:
     if widget_class not in _WIDGET_DETAILS_CACHE:
+        widget_snake_case = camel_to_snake(widget_class)
         if widget_type == WidgetType.CORE_WIDGET:
-            widget_snake_case = camel_to_snake(widget_class)
-
             docs_url = DOCS_WIDGETS_URL + widget_snake_case
 
             if widget_class == "MarkdownViewer":
@@ -129,6 +133,14 @@ def get_widget_details(
 
             docs_url = DOCS_CONTAINERS_URL + f".{widget_class}"
             source_url = SRC_CONTAINERS_URL
+
+        elif widget_type == WidgetType.BASE_CLASS:
+            module = import_module(f".{widget_snake_case}", package="textual")
+
+            docs_url = DOCS_BASE_URL + f"api/{widget_snake_case}"
+            source_url = (
+                SRC_BASE_URL + SRC_VERSION_PATH + f"src/textual/{widget_snake_case}.py"
+            )
 
         class_ = getattr(module, widget_class)
 
@@ -257,7 +269,7 @@ class InheritanceTree(Tree):
         self.border_title = "Inheritance Tree"
 
     def watch_base_classes(self) -> None:
-        assert len(self.base_classes) >= 3
+        assert len(self.base_classes) > 1
 
         self.clear()
 
@@ -419,6 +431,7 @@ class TextualDissectApp(App):
         with TabbedContent():
             yield WidgetDetailsPane("Core Widgets", WidgetType.CORE_WIDGET)
             yield WidgetDetailsPane("Containers", WidgetType.CONTAINER)
+            yield WidgetDetailsPane("Base Classes", WidgetType.BASE_CLASS)
 
 
 def run() -> None:
