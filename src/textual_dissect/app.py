@@ -96,7 +96,7 @@ class WidgetDetails:
     docs_url: str
     source_url: str
     base_classes: list[str]
-    module_widgets: list[str]
+    child_widgets: list[str]
     default_css: str
 
 
@@ -128,14 +128,16 @@ def get_widget_details(
         raw_default_css = class_.DEFAULT_CSS
         default_css = dedent(raw_default_css).strip()
 
-        module_widgets: list[str] = []
-        for name, obj in inspect.getmembers(module):
-            if (
-                inspect.isclass(obj)
-                and issubclass(obj, Widget)
-                and obj.__module__ == module.__name__
-            ):
-                module_widgets.append(name)
+        child_widgets: list[str] = []
+        if widget_type != WidgetType.CONTAINER:
+            for name, obj in inspect.getmembers(module):
+                if (
+                    inspect.isclass(obj)
+                    and issubclass(obj, Widget)
+                    and obj.__module__ == module.__name__
+                    and obj != class_
+                ):
+                    child_widgets.append(name)
 
         base_classes: list[str] = []
         while True:
@@ -153,7 +155,7 @@ def get_widget_details(
             docs_url=docs_url,
             source_url=source_url,
             base_classes=base_classes,
-            module_widgets=module_widgets,
+            child_widgets=child_widgets,
             default_css=default_css,
         )
 
@@ -259,9 +261,9 @@ class InheritanceTree(Tree):
         self.cursor_line = self.last_line
 
 
-class ModuleWidgetsList(OptionList):
+class ChildWidgetsList(OptionList):
     DEFAULT_CSS = """
-    ModuleWidgetsList {
+    ChildWidgetsList {
         height: 7;
         width: 1fr;
         background: $background;
@@ -273,19 +275,24 @@ class ModuleWidgetsList(OptionList):
             border-title-color: $text;
             border-title-style: bold;
         }
+
+        &:disabled {
+            hatch: right $foreground 25%;
+        }
     }
     """
 
-    module_widgets: var[list[str]] = var([], init=False)
+    child_widgets: var[list[str]] = var([])
 
     def __init__(self) -> None:
         super().__init__()
-        self.border_title = "Module Widgets"
+        self.border_title = "Child Widgets"
 
-    def watch_module_widgets(self) -> None:
+    def watch_child_widgets(self) -> None:
         self.clear_options()
+        self.disabled = not self.child_widgets
         self.add_options(
-            [Option(widget, id=widget) for widget in self.module_widgets],
+            [Option(widget, id=widget) for widget in self.child_widgets],
         )
 
 
@@ -363,7 +370,7 @@ class WidgetDetailsPane(TabPane):
         yield SourceCodeLink()
         with HorizontalGroup():
             yield InheritanceTree()
-            yield ModuleWidgetsList()
+            yield ChildWidgetsList()
         yield DefaultCSSView()
 
     def watch_widget_details(self, widget_details: WidgetDetails) -> None:
@@ -380,8 +387,8 @@ class WidgetDetailsPane(TabPane):
         inheritance_tree = self.query_one(InheritanceTree)
         inheritance_tree.base_classes = widget_details.base_classes
 
-        module_widgets_list = self.query_one(ModuleWidgetsList)
-        module_widgets_list.module_widgets = widget_details.module_widgets
+        child_widgets_list = self.query_one(ChildWidgetsList)
+        child_widgets_list.child_widgets = widget_details.child_widgets
 
         default_css_view = self.query_one(DefaultCSSView)
         default_css_view.load_text(widget_details.default_css)
