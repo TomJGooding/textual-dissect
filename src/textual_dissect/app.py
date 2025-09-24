@@ -111,11 +111,18 @@ def get_widget_details(
         if widget_type == WidgetType.CORE_WIDGET:
             widget_snake_case = camel_to_snake(widget_class)
 
-            module_path = f"._{widget_snake_case}"
-            module = import_module(module_path, package="textual.widgets")
-
             docs_url = DOCS_WIDGETS_URL + widget_snake_case
-            source_url = SRC_WIDGETS_URL + f"_{widget_snake_case}.py"
+
+            if widget_class == "MarkdownViewer":
+                # The `MarkdownViewer` is a special case as the module only
+                # exports the class defined in `_markdown.py`, for some reason?
+                module_path = f"._markdown"
+                source_url = SRC_WIDGETS_URL + "_markdown.py"
+            else:
+                module_path = f"._{widget_snake_case}"
+                source_url = SRC_WIDGETS_URL + f"_{widget_snake_case}.py"
+
+            module = import_module(module_path, package="textual.widgets")
 
         elif widget_type == WidgetType.CONTAINER:
             module = import_module(".containers", package="textual")
