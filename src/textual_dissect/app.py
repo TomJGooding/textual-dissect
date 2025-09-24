@@ -406,6 +406,8 @@ class WidgetDetailsPane(TabPane):
 
 
 class TextualDissectApp(App):
+    AUTO_FOCUS = "WidgetsList"
+
     def compose(self) -> ComposeResult:
         with TabbedContent():
             yield WidgetDetailsPane("Core Widgets", WidgetType.CORE_WIDGET)
