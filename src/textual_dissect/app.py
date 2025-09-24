@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 from dataclasses import dataclass
+from enum import Enum
 from importlib import import_module
 from textwrap import dedent
 
@@ -10,57 +11,84 @@ from textual import __version__, on
 from textual.app import App, ComposeResult
 from textual.case import camel_to_snake
 from textual.containers import HorizontalGroup
+from textual.content import ContentType
 from textual.dom import DOMNode
 from textual.reactive import var
 from textual.widget import Widget
-from textual.widgets import Link, OptionList, TextArea, Tree
+from textual.widgets import Link, OptionList, TabbedContent, TabPane, TextArea, Tree
 from textual.widgets.option_list import Option
 from tree_sitter import Language
 
-WIDGET_CLASSES = [
-    "Button",
-    "Checkbox",
-    "Collapsible",
-    "ContentSwitcher",
-    "DataTable",
-    "Digits",
-    "DirectoryTree",
-    "Footer",
-    "Header",
-    "Input",
-    "Label",
-    "Link",
-    "ListView",
-    "LoadingIndicator",
-    "Log",
-    "MarkdownViewer",
-    "Markdown",
-    "MaskedInput",
-    "OptionList",
-    "Placeholder",
-    "Pretty",
-    "ProgressBar",
-    "RadioButton",
-    "RadioSet",
-    "RichLog",
-    "Rule",
-    "Select",
-    "SelectionList",
-    "Sparkline",
-    "Static",
-    "Switch",
-    "Tabs",
-    "TabbedContent",
-    "TextArea",
-    "Tree",
-]
+
+class WidgetType(Enum):
+    CORE_WIDGET = 1
+    CONTAINER = 2
+
+
+WIDGET_CLASSES = {
+    WidgetType.CORE_WIDGET: [
+        "Button",
+        "Checkbox",
+        "Collapsible",
+        "ContentSwitcher",
+        "DataTable",
+        "Digits",
+        "DirectoryTree",
+        "Footer",
+        "Header",
+        "Input",
+        "Label",
+        "Link",
+        "ListView",
+        "LoadingIndicator",
+        "Log",
+        "MarkdownViewer",
+        "Markdown",
+        "MaskedInput",
+        "OptionList",
+        "Placeholder",
+        "Pretty",
+        "ProgressBar",
+        "RadioButton",
+        "RadioSet",
+        "RichLog",
+        "Rule",
+        "Select",
+        "SelectionList",
+        "Sparkline",
+        "Static",
+        "Switch",
+        "Tabs",
+        "TabbedContent",
+        "TextArea",
+        "Tree",
+    ],
+    WidgetType.CONTAINER: [
+        "Container",
+        "ScrollableContainer",
+        "Vertical",
+        "VerticalGroup",
+        "VerticalScroll",
+        "Horizontal",
+        "HorizontalGroup",
+        "HorizontalScroll",
+        "Center",
+        "Right",
+        "Middle",
+        "CenterMiddle",
+        "Grid",
+        "ItemGrid",
+    ],
+}
 
 DOCS_BASE_URL = "https://textual.textualize.io/"
 DOCS_WIDGETS_URL = DOCS_BASE_URL + "widgets/"
+DOCS_CONTAINERS_URL = DOCS_BASE_URL + "api/containers/#textual.containers"
 
 SRC_BASE_URL = "https://github.com/Textualize/textual/"
 SRC_VERSION_PATH = f"blob/v{__version__}/"
 SRC_WIDGETS_URL = SRC_BASE_URL + SRC_VERSION_PATH + "src/textual/widgets/"
+SRC_CONTAINERS_URL = SRC_BASE_URL + SRC_VERSION_PATH + "src/textual/containers.py"
 
 
 @dataclass(frozen=True)
@@ -75,15 +103,26 @@ class WidgetDetails:
 _WIDGET_DETAILS_CACHE: dict[str, WidgetDetails] = {}
 
 
-def get_widget_details(widget_class: str) -> WidgetDetails:
+def get_widget_details(
+    widget_class: str,
+    widget_type: WidgetType,
+) -> WidgetDetails:
     if widget_class not in _WIDGET_DETAILS_CACHE:
-        widget_snake_case = camel_to_snake(widget_class)
+        if widget_type == WidgetType.CORE_WIDGET:
+            widget_snake_case = camel_to_snake(widget_class)
 
-        docs_url = DOCS_WIDGETS_URL + widget_snake_case
-        source_url = SRC_WIDGETS_URL + f"_{widget_snake_case}.py"
+            module_path = f"._{widget_snake_case}"
+            module = import_module(module_path, package="textual.widgets")
 
-        module_path = f"._{widget_snake_case}"
-        module = import_module(module_path, package="textual.widgets")
+            docs_url = DOCS_WIDGETS_URL + widget_snake_case
+            source_url = SRC_WIDGETS_URL + f"_{widget_snake_case}.py"
+
+        elif widget_type == WidgetType.CONTAINER:
+            module = import_module(".containers", package="textual")
+
+            docs_url = DOCS_CONTAINERS_URL + f".{widget_class}"
+            source_url = SRC_CONTAINERS_URL
+
         class_ = getattr(module, widget_class)
 
         raw_default_css = class_.DEFAULT_CSS
@@ -135,10 +174,11 @@ class WidgetsList(OptionList):
     }
     """
 
-    def __init__(self) -> None:
+    def __init__(self, widget_type: WidgetType) -> None:
         super().__init__(
-            *[Option(widget, id=widget) for widget in WIDGET_CLASSES],
+            *[Option(widget, id=widget) for widget in WIDGET_CLASSES[widget_type]],
         )
+        self.widget_type = widget_type
 
 
 class DocumentationLink(Link):
@@ -149,20 +189,17 @@ class DocumentationLink(Link):
         padding: 0 1;
 
         &:focus {
+            text-style: bold underline;
             border: solid $border;
+            border-title-color: $text;
+            border-title-style: bold;
         }
     }
     """
 
-    widget_class: var[str] = var(WIDGET_CLASSES[0])
-
     def __init__(self) -> None:
-        super().__init__(text=DOCS_BASE_URL, url=DOCS_BASE_URL)
-
-    def watch_widget_class(self, widget_class: str) -> None:
-        widget_details = get_widget_details(widget_class)
-        self.text = widget_details.docs_url
-        self.url = widget_details.docs_url
+        super().__init__(DOCS_BASE_URL, url=DOCS_BASE_URL)
+        self.border_title = "Documentation"
 
 
 class SourceCodeLink(Link):
@@ -173,20 +210,17 @@ class SourceCodeLink(Link):
         padding: 0 1;
 
         &:focus {
+            text-style: bold underline;
             border: solid $border;
+            border-title-color: $text;
+            border-title-style: bold;
         }
     }
     """
 
-    widget_class: var[str] = var(WIDGET_CLASSES[0])
-
     def __init__(self) -> None:
-        super().__init__(text=SRC_WIDGETS_URL, url=SRC_WIDGETS_URL)
-
-    def watch_widget_class(self, widget_class: str) -> None:
-        widget_details = get_widget_details(widget_class)
-        self.text = widget_details.source_url
-        self.url = widget_details.source_url
+        super().__init__(text=SRC_BASE_URL, url=SRC_BASE_URL)
+        self.border_title = "Source Code"
 
 
 class InheritanceTree(Tree):
@@ -194,27 +228,32 @@ class InheritanceTree(Tree):
     InheritanceTree {
         height: 7;
         width: 1fr;
+        background: $background;
         border: solid $foreground 50%;
         padding: 0 1;
 
         &:focus {
             border: solid $border;
+            border-title-color: $text;
+            border-title-style: bold;
         }
     }
     """
 
-    widget_class: var[str] = var(WIDGET_CLASSES[0])
+    base_classes: var[list[str]] = var([], init=False)
 
     def __init__(self) -> None:
         super().__init__("DOMNode")
+        self.show_root = False
+        self.border_title = "Inheritance Tree"
 
-    def watch_widget_class(self, widget_class: str) -> None:
+    def watch_base_classes(self) -> None:
+        assert len(self.base_classes) >= 3
+
         self.clear()
 
-        widget_details = get_widget_details(widget_class)
-        base_classes = widget_details.base_classes
-        widget = self.root.add(base_classes[1], expand=True, allow_expand=False)
-        for class_ in base_classes[2:]:
+        widget = self.root.add(self.base_classes[1], expand=True, allow_expand=False)
+        for class_ in self.base_classes[2:]:
             widget = widget.add(class_, expand=True, allow_expand=False)
 
         self.cursor_line = self.last_line
@@ -225,22 +264,28 @@ class ModuleWidgetsList(OptionList):
     ModuleWidgetsList {
         height: 7;
         width: 1fr;
+        background: $background;
         border: solid $foreground 50%;
         padding: 0 1;
 
         &:focus {
             border: solid $border;
+            border-title-color: $text;
+            border-title-style: bold;
         }
     }
     """
 
-    widget_class: var[str] = var(WIDGET_CLASSES[0])
+    module_widgets: var[list[str]] = var([], init=False)
 
-    def watch_widget_class(self, widget_class: str) -> None:
+    def __init__(self) -> None:
+        super().__init__()
+        self.border_title = "Module Widgets"
+
+    def watch_module_widgets(self) -> None:
         self.clear_options()
-        widget_details = get_widget_details(widget_class)
         self.add_options(
-            [Option(widget, id=widget) for widget in widget_details.module_widgets]
+            [Option(widget, id=widget) for widget in self.module_widgets],
         )
 
 
@@ -285,77 +330,79 @@ class DefaultCSSView(TextArea):
     DefaultCSSView {
         width: 1fr;
         border: solid $foreground 50%;
+        background: $background;
         padding: 0 1;
         scrollbar-gutter: stable;
 
         &:focus {
             border: solid $border;
+            border-title-color: $text;
+            border-title-style: bold;
         }
     }
     """
 
-    widget_class: var[str] = var(WIDGET_CLASSES[0])
-
     def __init__(self) -> None:
         super().__init__(read_only=True)
+        self.border_title = "Default CSS"
+        self.register_language("tcss", _TCSS_LANGUAGE, _TCSS_HIGHLIGHT_QUERY)
+        self.language = "tcss"
 
-    def watch_widget_class(self, widget_class: str) -> None:
-        widget_details = get_widget_details(widget_class)
-        self.load_text(widget_details.default_css)
 
+class WidgetDetailsPane(TabPane):
+    widget_details: var[WidgetDetails | None] = var(None, init=False)
 
-class TextualDissectApp(App):
-    widget_class: var[str] = var(WIDGET_CLASSES[0])
+    def __init__(self, title: ContentType, widget_type: WidgetType):
+        super().__init__(title)
+        self.widget_type = widget_type
 
     def compose(self) -> ComposeResult:
-        widgets_list = WidgetsList()
-        widgets_list.border_title = "Widgets"
+        yield WidgetsList(self.widget_type)
 
-        documentation_link = DocumentationLink()
-        documentation_link.data_bind(TextualDissectApp.widget_class)
-        documentation_link.border_title = "Documentation"
-
-        source_code_link = SourceCodeLink()
-        source_code_link.data_bind(TextualDissectApp.widget_class)
-        source_code_link.border_title = "Source Code"
-
-        inheritance_tree = InheritanceTree()
-        inheritance_tree.data_bind(TextualDissectApp.widget_class)
-        inheritance_tree.border_title = "Inheritance Tree"
-        inheritance_tree.show_root = False
-
-        module_widgets_list = ModuleWidgetsList()
-        module_widgets_list.data_bind(TextualDissectApp.widget_class)
-        module_widgets_list.border_title = "Module Widgets"
-
-        default_css_view = DefaultCSSView()
-        default_css_view.data_bind(TextualDissectApp.widget_class)
-        default_css_view.border_title = "Default CSS"
-        default_css_view.cursor_blink = False
-        default_css_view.register_language(
-            "tcss", _TCSS_LANGUAGE, _TCSS_HIGHLIGHT_QUERY
-        )
-        default_css_view.language = "tcss"
-
-        yield widgets_list
-        yield documentation_link
-        yield source_code_link
+        yield DocumentationLink()
+        yield SourceCodeLink()
         with HorizontalGroup():
-            yield inheritance_tree
-            yield module_widgets_list
-        yield default_css_view
+            yield InheritanceTree()
+            yield ModuleWidgetsList()
+        yield DefaultCSSView()
 
-    # NOTE: The CSS selector is needed in the `on` decorator below to
-    # workaround a footgun in Textual where the event handler doesn't
-    # differentiate the subclass from its parent widget.
-    # https://github.com/Textualize/textual/issues/4968
+    def watch_widget_details(self, widget_details: WidgetDetails) -> None:
+        assert widget_details is not None
+
+        documentation_link = self.query_one(DocumentationLink)
+        documentation_link.text = widget_details.docs_url
+        documentation_link.url = widget_details.docs_url
+
+        source_code_link = self.query_one(SourceCodeLink)
+        source_code_link.text = widget_details.source_url
+        source_code_link.url = widget_details.source_url
+
+        inheritance_tree = self.query_one(InheritanceTree)
+        inheritance_tree.base_classes = widget_details.base_classes
+
+        module_widgets_list = self.query_one(ModuleWidgetsList)
+        module_widgets_list.module_widgets = widget_details.module_widgets
+
+        default_css_view = self.query_one(DefaultCSSView)
+        default_css_view.load_text(widget_details.default_css)
+
     @on(WidgetsList.OptionHighlighted, "WidgetsList")
     def on_widgets_list_option_highlighted(
         self, event: WidgetsList.OptionHighlighted
     ) -> None:
+        assert isinstance(event.control, WidgetsList)
+        widget_type = event.control.widget_type
         widget_class = event.option_id
         assert widget_class is not None
-        self.widget_class = widget_class
+
+        self.widget_details = get_widget_details(widget_class, widget_type)
+
+
+class TextualDissectApp(App):
+    def compose(self) -> ComposeResult:
+        with TabbedContent():
+            yield WidgetDetailsPane("Core Widgets", WidgetType.CORE_WIDGET)
+            yield WidgetDetailsPane("Containers", WidgetType.CONTAINER)
 
 
 def run() -> None:
