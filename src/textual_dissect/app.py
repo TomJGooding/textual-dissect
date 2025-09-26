@@ -244,7 +244,7 @@ class SourceCodeLink(Link):
         self.border_title = "Source Code"
 
 
-class InheritanceTree(Tree):
+class InheritanceTree(Tree[str]):
     DEFAULT_CSS = """
     InheritanceTree {
         height: 7;
@@ -273,9 +273,16 @@ class InheritanceTree(Tree):
 
         self.clear()
 
-        widget = self.root.add(self.base_classes[1], expand=True, allow_expand=False)
+        widget = self.root.add(
+            label=self.base_classes[1],
+            data=self.base_classes[1],
+            expand=True,
+            allow_expand=False,
+        )
         for class_ in self.base_classes[2:]:
-            widget = widget.add(class_, expand=True, allow_expand=False)
+            widget = widget.add(
+                label=class_, data=class_, expand=True, allow_expand=False
+            )
 
         self.cursor_line = self.last_line
 
@@ -378,8 +385,8 @@ class DefaultCSSView(TextArea):
 class WidgetDetailsPane(TabPane):
     widget_details: var[WidgetDetails | None] = var(None, init=False)
 
-    def __init__(self, title: ContentType, widget_type: WidgetType):
-        super().__init__(title)
+    def __init__(self, title: ContentType, widget_type: WidgetType, id: str):
+        super().__init__(title, id=id)
         self.widget_type = widget_type
 
     def compose(self) -> ComposeResult:
@@ -429,9 +436,54 @@ class TextualDissectApp(App):
 
     def compose(self) -> ComposeResult:
         with TabbedContent():
-            yield WidgetDetailsPane("Core Widgets", WidgetType.CORE_WIDGET)
-            yield WidgetDetailsPane("Containers", WidgetType.CONTAINER)
-            yield WidgetDetailsPane("Base Classes", WidgetType.BASE_CLASS)
+            yield WidgetDetailsPane(
+                "Core Widgets",
+                WidgetType.CORE_WIDGET,
+                id="core-widgets",
+            )
+            yield WidgetDetailsPane(
+                "Containers",
+                WidgetType.CONTAINER,
+                id="containers",
+            )
+            yield WidgetDetailsPane(
+                "Base Classes",
+                WidgetType.BASE_CLASS,
+                id="base-classes",
+            )
+
+    @on(InheritanceTree.NodeSelected, "InheritanceTree")
+    def on_inheritance_tree_node_selected(
+        self, event: InheritanceTree.NodeSelected
+    ) -> None:
+        assert isinstance(event.control, InheritanceTree)
+        selected_widget = event.node.data
+        assert isinstance(selected_widget, str)
+
+        tab_pane_id: str | None = None
+        for widget_type, widget_classes in WIDGET_CLASSES.items():
+            if selected_widget in widget_classes:
+                if widget_type == WidgetType.CORE_WIDGET:
+                    tab_pane_id = "core-widgets"
+                elif widget_type == WidgetType.CONTAINER:
+                    tab_pane_id = "containers"
+                elif widget_type == WidgetType.BASE_CLASS:
+                    tab_pane_id = "base-classes"
+                break
+
+        if tab_pane_id is not None:
+            tabbed_content = self.query_one(TabbedContent)
+            tab_pane = tabbed_content.get_pane(tab_pane_id)
+
+            widgets_list = tab_pane.query_one(WidgetsList)
+            option_index = widgets_list.get_option_index(selected_widget)
+            if (
+                tabbed_content.active_pane != tab_pane
+                or widgets_list.highlighted != option_index
+            ):
+                widgets_list.highlighted = option_index
+                # Focusing the widget list will automatically switch tab
+                widgets_list.focus()
 
 
 def run() -> None:
