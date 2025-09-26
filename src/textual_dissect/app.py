@@ -90,7 +90,7 @@ DOCS_BASE_URL = "https://textual.textualize.io/"
 DOCS_WIDGETS_URL = DOCS_BASE_URL + "widgets/"
 DOCS_CONTAINERS_URL = DOCS_BASE_URL + "api/containers/#textual.containers"
 
-SRC_BASE_URL = f"https://github.com/Textualize/textual/"
+SRC_BASE_URL = "https://github.com/Textualize/textual/"
 SRC_VERSION_PATH = f"blob/v{__version__}/"
 SRC_WIDGETS_URL = SRC_BASE_URL + SRC_VERSION_PATH + "src/textual/widgets/"
 SRC_CONTAINERS_URL = SRC_BASE_URL + SRC_VERSION_PATH + "src/textual/containers.py"
