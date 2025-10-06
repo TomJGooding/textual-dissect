@@ -149,10 +149,9 @@ def get_widget_details(
 
         child_widgets: list[str] = []
         if widget_type != WidgetType.CONTAINER:
-            for name, obj in inspect.getmembers(module):
+            for name, obj in inspect.getmembers(module, inspect.isclass):
                 if (
-                    inspect.isclass(obj)
-                    and issubclass(obj, Widget)
+                    issubclass(obj, Widget)
                     and obj.__module__ == module.__name__
                     and obj != class_
                 ):
