@@ -155,7 +155,13 @@ def get_widget_details(
                     and obj.__module__ == module.__name__
                     and obj != class_
                 ):
-                    child_widgets.append(name)
+                    if widget_class == "Markdown" and name in (
+                        "MarkdownViewer",
+                        "MarkdownTableOfContents",
+                    ):
+                        continue
+                    else:
+                        child_widgets.append(name)
 
         base_classes: list[str] = []
         while True:
