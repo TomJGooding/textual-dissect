@@ -174,6 +174,16 @@ def get_widget_details(
                         continue
                     else:
                         child_widgets.append(name)
+            # Currently this list is missing the child widgets imported from
+            # other modules. There might be a smarter way of adding these, but
+            # for now just hard code the missing widgets.
+            if widget_class == "ListView":
+                child_widgets.append("ListItem")
+            elif widget_class == "RadioSet":
+                child_widgets.append("RadioButton")
+            elif widget_class == "TabbedContent":
+                child_widgets.append("ContentSwitcher")
+            child_widgets.sort()
 
         _WIDGET_DETAILS_CACHE[widget_class] = WidgetDetails(
             docs_url=docs_url,
